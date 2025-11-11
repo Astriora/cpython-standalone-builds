@@ -1,43 +1,52 @@
 name: Download Python Builds
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 0" # 每周日 00:00 UTC 自动运行
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: write  # 允许写入仓库内容
 
 jobs:
   download:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
+          python-version: '3.11'
+      
       - name: Download Linux Python builds
         run: |
           python fetch_python.py --system Linux --workers 16
-
+      
       - name: Verify checksums
         run: |
           cd downloads/Linux/Python
           sha256sum -c SHA256SUMS-*.txt --ignore-missing
-
+      
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: python-linux-builds-${{ github.run_number }}
           path: downloads/Linux/Python/
           retention-days: 30
-
-      - name: Commit and push (optional)
+      
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add downloads/
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update Python builds $(date +'%Y-%m-%d %H:%M')"
-          git push || echo "No changes to push"
+          if ! git diff --quiet --staged; then
+            git commit -m "Update Python builds $(date +'%Y-%m-%d %H:%M')"
+            git push
+          else
+            echo "No changes to commit"
+          fi
